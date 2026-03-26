@@ -6,9 +6,9 @@
     <title>THEMUIZ STUDIO - Remix Engineering</title>
     <!-- ใช้ Tailwind CSS สำหรับความสวยงาม -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- ไอคอนสวยๆ -->
+    <!-- ไอคอน -->
     <script src="https://unpkg.com/lucide@latest"></script>
-    <!-- Library เขียน ID3 Tags ตัวเทพ -->
+    <!-- Library เขียน ID3 Tags ตัวเทพ (เวอร์ชันล่าสุด) -->
     <script src="https://unpkg.com/browser-id3-writer@4.4.0/dist/browser-id3-writer.min.js"></script>
     <!-- ฟอนต์ Kanit -->
     <link href="https://fonts.googleapis.com/css2?family=Kanit:ital,wght@0,300;0,400;0,600;0,800;0,900;1,800;1,900&display=swap" rel="stylesheet">
@@ -16,12 +16,12 @@
     <style>
         body {
             font-family: 'Kanit', sans-serif;
-            background-color: #08080c; /* สีพื้นหลังดำๆ แบบในรูป */
+            background-color: #08080c; 
             color: white;
             -webkit-tap-highlight-color: transparent;
         }
         .glass-panel {
-            background: #111116; /* สีการ์ดเข้มๆ */
+            background: #111116; 
             border: 1px solid rgba(255, 255, 255, 0.03);
             box-shadow: 0 20px 40px rgba(0,0,0,0.5);
         }
@@ -36,34 +36,25 @@
             background-color: rgba(0, 0, 0, 0.6) !important;
             outline: none;
         }
-        /* ควบคุมขนาดตัวหนังสือบนรูปปกแบบ Responsive (ใช้ Container Queries) */
-        .cover-container {
-            container-type: inline-size;
+        /* Custom Audio Player */
+        audio {
+            width: 100%;
+            height: 50px;
+            border-radius: 12px;
+            outline: none;
+            color-scheme: dark;
         }
-        .cover-text {
-            position: absolute;
-            bottom: 6%;
-            left: 5%;
-            width: 90%;
-            color: white;
-            font-weight: 900;
-            font-style: italic;
-            /* ขนาด 15cqw คือประมาณ 15% ของความกว้างรูปภาพ (ใหญ่พอดีกับ 1 ใน 3 ที่เตงขีดไว้) */
-            font-size: clamp(1.5rem, 15cqw, 4rem); 
-            line-height: 1.05;
-            text-shadow: 
-                -2px -2px 0 #000, 2px -2px 0 #000,
-                -2px  2px 0 #000, 2px  2px 0 #000,
-                5px 5px 15px rgba(0,0,0,0.9);
-            pointer-events: none;
-            z-index: 10;
-            display: -webkit-box;
-            -webkit-line-clamp: 3;
-            -webkit-box-orient: vertical;
-            overflow: hidden;
+        audio::-webkit-media-controls-panel {
+            background-color: #1a1a24;
         }
         #loadingModal {
             display: none;
+        }
+        canvas {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: 2rem;
         }
     </style>
 </head>
@@ -74,7 +65,7 @@
         <div class="w-16 h-16 border-4 border-cyan-500 border-t-transparent rounded-full animate-spin mb-6"></div>
         <div class="bg-[#1a1a24] px-8 py-5 rounded-3xl border border-white/5 shadow-2xl text-center">
             <h3 class="text-white font-bold text-lg mb-2">กำลังประมวลผลไฟล์...</h3>
-            <p class="text-cyan-400 font-black uppercase tracking-[0.2em] text-[10px]">PROCESSING...</p>
+            <p class="text-cyan-400 font-black uppercase tracking-[0.2em] text-[10px]" id="loadingText">PROCESSING...</p>
         </div>
     </div>
 
@@ -109,25 +100,16 @@
         <!-- หน้าจอแก้ไข Metadata (จะโชว์ตอนเลือกเพลงแล้ว) -->
         <div id="editorScreen" class="hidden grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
             
-            <!-- ด้านซ้าย: รูปปก -->
+            <!-- ด้านซ้าย: รูปปก และ เครื่องเล่นเสียง -->
             <div class="lg:col-span-5">
                 <div class="glass-panel rounded-[2.5rem] p-5">
                     
-                    <!-- กรอบรูปปก -->
-                    <div class="cover-container relative aspect-square bg-black rounded-[2rem] overflow-hidden group border border-white/5 cursor-pointer" onclick="document.getElementById('coverInput').click()">
+                    <!-- กรอบแสดงรูปปกด้วย Canvas (วาดรูปและตัวหนังสือฝังลงไปเลย) -->
+                    <div class="relative aspect-square bg-black rounded-[2rem] overflow-hidden group border border-white/5 cursor-pointer" onclick="document.getElementById('coverInput').click()">
                         <input type="file" id="coverInput" class="hidden" accept="image/*" onchange="handleCoverUpload(event)">
                         
-                        <!-- รูประบุว่ายังไม่มีปก -->
-                        <div id="noCoverState" class="absolute inset-0 flex flex-col items-center justify-center text-white/20">
-                            <i data-lucide="image" class="w-16 h-16 mb-4"></i>
-                            <span class="text-[10px] font-black uppercase tracking-[0.2em]">แตะเพื่อเพิ่มรูปภาพปก</span>
-                        </div>
-                        
-                        <!-- รูปปกที่จะแสดง -->
-                        <img id="coverPreview" class="hidden absolute inset-0 w-full h-full object-cover" alt="Cover">
-                        
-                        <!-- ตัวหนังสือบนรูปปก (ชื่อเพลง) -->
-                        <div id="coverTextOverlay" class="cover-text"></div>
+                        <!-- Canvas สำหรับวาดรูปปก -->
+                        <canvas id="coverCanvas" width="800" height="800"></canvas>
                         
                         <!-- Hover เปลี่ยนรูป -->
                         <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center z-20">
@@ -136,13 +118,14 @@
                         </div>
                     </div>
 
-                    <!-- แสดงชื่อไฟล์ -->
-                    <div class="mt-5 p-4 bg-black/40 rounded-2xl flex items-center gap-4">
-                        <div class="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_#06b6d4]"></div>
-                        <div class="overflow-hidden">
-                            <p class="text-[9px] text-cyan-500 font-black uppercase tracking-widest mb-1">ไฟล์ปัจจุบัน</p>
+                    <!-- แถบเครื่องเล่นเสียง Audio Player -->
+                    <div class="mt-6 p-4 bg-black/40 rounded-2xl border border-white/5 shadow-inner">
+                        <div class="flex items-center gap-3 mb-3">
+                            <div class="w-2 h-2 rounded-full bg-cyan-500 shadow-[0_0_10px_#06b6d4]"></div>
                             <p id="fileNameDisplay" class="text-white text-sm font-bold truncate">...</p>
                         </div>
+                        <!-- เครื่องเล่นเสียงแบบมาตรฐานของเบราว์เซอร์ (ปรับความเร็วได้) -->
+                        <audio id="audioPreview" controls preload="metadata"></audio>
                     </div>
                 </div>
             </div>
@@ -163,7 +146,7 @@
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
                         <div class="md:col-span-2 space-y-2">
                             <label class="text-[10px] font-black uppercase text-white/50 tracking-[0.1em] ml-2">ชื่อเพลง (TITLE)</label>
-                            <input type="text" id="meta-title" oninput="updateCoverText()" class="w-full rounded-2xl px-5 py-4 text-sm font-medium">
+                            <input type="text" id="meta-title" oninput="renderCanvas()" class="w-full rounded-2xl px-5 py-4 text-sm font-medium">
                         </div>
                         
                         <div class="space-y-2">
@@ -208,24 +191,72 @@
     </main>
 
     <script>
-        // วาดไอคอน
         lucide.createIcons();
 
-        // ตัวแปรเก็บข้อมูล
         let originalAudioFile = null;
-        let coverDataURI = null;
+        let uploadedImageObj = null; // เก็บออปเจกต์รูปภาพต้นฉบับ
+        
+        const canvas = document.getElementById('coverCanvas');
+        const ctx = canvas.getContext('2d');
+        const CANVAS_SIZE = 800; // ขนาดรูปภาพที่ฝังลง MP3 (800x800 px ชัดแจ๋ว)
 
-        // อัปเดตตัวหนังสือบนปก (ตัดคำหลังเครื่องหมาย -)
-        function updateCoverText() {
-            const rawTitle = document.getElementById('meta-title').value;
-            const overlay = document.getElementById('coverTextOverlay');
-            
-            if (rawTitle) {
-                // ตัดเครื่องหมาย - และข้อความด้านหลังออก แล้วลบช่องว่างหัวท้าย
-                const cleanTitle = rawTitle.split('-')[0].trim();
-                overlay.textContent = cleanTitle;
+        // ฟังก์ชันวาดรูปภาพและตัวหนังสือลง Canvas (Burn-in)
+        async function renderCanvas() {
+            // เคลียร์หน้ากระดาษ
+            ctx.clearRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+
+            // 1. วาดรูปพื้นหลัง
+            if (uploadedImageObj) {
+                // คำนวณให้รูปเต็มกรอบสี่เหลี่ยมจัตุรัสแบบ Crop
+                const scale = Math.max(CANVAS_SIZE / uploadedImageObj.width, CANVAS_SIZE / uploadedImageObj.height);
+                const x = (CANVAS_SIZE - uploadedImageObj.width * scale) / 2;
+                const y = (CANVAS_SIZE - uploadedImageObj.height * scale) / 2;
+                ctx.drawImage(uploadedImageObj, x, y, uploadedImageObj.width * scale, uploadedImageObj.height * scale);
             } else {
-                overlay.textContent = "";
+                // ถ้ายังไม่มีรูป ให้วาดพื้นหลังสีเทาเข้ม
+                ctx.fillStyle = '#1a1a24';
+                ctx.fillRect(0, 0, CANVAS_SIZE, CANVAS_SIZE);
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.font = 'bold 40px Kanit';
+                ctx.textAlign = 'center';
+                ctx.fillText('แตะเพื่อเพิ่มรูปภาพปก', CANVAS_SIZE / 2, CANVAS_SIZE / 2);
+            }
+
+            // 2. ดึงชื่อเพลงมาตัดเครื่องหมาย - ออก
+            const rawTitle = document.getElementById('meta-title').value;
+            if (rawTitle) {
+                const cleanTitle = rawTitle.split('-')[0].trim();
+                
+                // รอให้ฟอนต์ Kanit โหลดเสร็จก่อนวาด (กันบั๊กฟอนต์ไม่ขึ้นในครั้งแรก)
+                await document.fonts.load('900 italic 120px Kanit');
+                
+                // ตั้งค่าฟอนต์และขนาดประมาณ 1 ใน 3 ของรูป (ใช้ขนาด 140px)
+                const fontSize = CANVAS_SIZE / 5; 
+                ctx.font = `italic 900 ${fontSize}px Kanit`;
+                ctx.textAlign = 'left';
+                ctx.textBaseline = 'bottom';
+
+                // ตั้งค่าเงาและขอบสีดำ
+                ctx.lineWidth = 12;
+                ctx.strokeStyle = '#000000';
+                ctx.fillStyle = '#FFFFFF';
+                
+                // สร้าง Shadow ให้ดูมีมิติ
+                ctx.shadowColor = "rgba(0,0,0,0.8)";
+                ctx.shadowBlur = 15;
+                ctx.shadowOffsetX = 5;
+                ctx.shadowOffsetY = 5;
+
+                // พิกัดมุมซ้ายล่าง (เว้นขอบนิดหน่อย)
+                const textX = CANVAS_SIZE * 0.05;
+                const textY = CANVAS_SIZE * 0.95;
+
+                // วาดขอบดำ (Stroke) 
+                ctx.strokeText(cleanTitle, textX, textY);
+                // ปิด Shadow ก่อนวาดสีขาวทับ เพื่อให้ตัวหนังสือคมชัด
+                ctx.shadowColor = "transparent"; 
+                // วาดตัวหนังสือสีขาวทับ (Fill)
+                ctx.fillText(cleanTitle, textX, textY);
             }
         }
 
@@ -234,7 +265,6 @@
             const file = event.target.files[0];
             if (!file) return;
 
-            // ตรวจสอบนามสกุลไฟล์
             if (!file.name.toLowerCase().endsWith('.mp3')) {
                 alert("เตงจ๋า ระบบรองรับเฉพาะไฟล์ .mp3 เท่านั้นน้า ลองเลือกไฟล์ใหม่ดูจ้า");
                 return;
@@ -243,16 +273,18 @@
             originalAudioFile = file;
             document.getElementById('fileNameDisplay').textContent = file.name;
             
-            // สลับหน้าจอ
+            // ส่งไฟล์เสียงไปที่ Audio Player ให้เปิดฟังได้
+            const audioPreview = document.getElementById('audioPreview');
+            audioPreview.src = URL.createObjectURL(file);
+
             document.getElementById('uploadScreen').style.display = 'none';
             document.getElementById('editorScreen').classList.remove('hidden');
 
-            // ลบนามสกุล .mp3 ออก แล้วเติม - TheMuiZ REMIX
             const cleanName = file.name.replace(/\.[^/.]+$/, "");
             document.getElementById('meta-title').value = cleanName + " - TheMuiZ REMIX";
             
-            // อัปเดตปกทันที
-            updateCoverText();
+            // โหลดฟอนต์และวาด Canvas ครั้งแรก
+            renderCanvas();
         }
 
         // เมื่ออัปโหลดรูป
@@ -262,16 +294,17 @@
 
             const reader = new FileReader();
             reader.onload = (e) => {
-                coverDataURI = e.target.result;
-                const preview = document.getElementById('coverPreview');
-                preview.src = coverDataURI;
-                preview.classList.remove('hidden');
-                document.getElementById('noCoverState').style.display = 'none';
+                const img = new Image();
+                img.onload = () => {
+                    uploadedImageObj = img;
+                    renderCanvas(); // วาดรูปและตัวหนังสือใหม่
+                };
+                img.src = e.target.result;
             };
             reader.readAsDataURL(file);
         }
 
-        // ปุ่มคำนวณ BPM ขำๆ
+        // คำนวณ BPM
         function randomBPM() {
             const btn = document.getElementById('btnBpm');
             const input = document.getElementById('meta-bpm');
@@ -281,7 +314,7 @@
             }, 600);
         }
 
-        // ฟังก์ชันแปลง DataURI เป็น ArrayBuffer ที่เสถียรที่สุด (แก้บั๊กเซฟรูปแล้วพัง)
+        // ฟังก์ชันแปลง DataURI จาก Canvas เป็น ArrayBuffer สำหรับฝังรูป
         function convertDataURIToArrayBuffer(dataURI) {
             const base64String = dataURI.split(',')[1];
             const binaryString = window.atob(base64String);
@@ -293,10 +326,16 @@
             return bytes.buffer;
         }
 
-        // ปุ่มเซฟ (แก้ไขใหม่หมดให้เสถียร 100%)
+        // ปุ่มเซฟ (แก้ไขบั๊ก ID3Writer is not defined แล้วจ้า)
         async function saveAndDownload() {
             if (!originalAudioFile) {
                 alert("ยังไม่ได้เลือกไฟล์เพลงเลยจ้า");
+                return;
+            }
+
+            // เช็กว่า Browser โหลดไลบรารีสำเร็จไหม
+            if (typeof browserID3Writer === 'undefined') {
+                alert("เกิดข้อผิดพลาด: โหลดสคริปต์ไม่สำเร็จจ้า รบกวนเตงเช็กอินเทอร์เน็ตหรือปิด Adblock แล้วรีเฟรชหน้านี้นะจ๊ะ");
                 return;
             }
 
@@ -304,13 +343,11 @@
             modal.style.display = 'flex';
 
             try {
-                // 1. อ่าน ArrayBuffer สดๆ จากไฟล์ต้นฉบับทุกครั้งที่กดเซฟ (ป้องกันข้อมูลพังจากการเซฟซ้ำ)
                 const arrayBuffer = await originalAudioFile.arrayBuffer();
 
-                // 2. เรียกใช้ ID3Writer
-                const writer = new ID3Writer(arrayBuffer);
+                // ใช้คำสั่ง browserID3Writer แทน ID3Writer (อันนี้แหละที่แก้บั๊ก)
+                const writer = new browserID3Writer(arrayBuffer);
 
-                // 3. ใส่ข้อมูล
                 writer.setFrame('TIT2', document.getElementById('meta-title').value)
                       .setFrame('TPE1', [document.getElementById('meta-artist').value])
                       .setFrame('TALB', document.getElementById('meta-album').value)
@@ -318,26 +355,23 @@
                       .setFrame('TBPM', document.getElementById('meta-bpm').value)
                       .setFrame('TCON', [document.getElementById('meta-genre').value]);
 
-                // 4. ใส่รูปปก (ถ้ามี)
-                if (coverDataURI) {
-                    try {
-                        const imgBuffer = convertDataURIToArrayBuffer(coverDataURI);
-                        writer.setFrame('APIC', {
-                            type: 3,
-                            data: imgBuffer,
-                            description: 'Cover Image'
-                        });
-                    } catch (imgErr) {
-                        console.error("รูปภาพมีปัญหา:", imgErr);
-                    }
+                // ดึงรูปที่วาดเสร็จแล้วจาก Canvas มาฝังลง MP3
+                const finalCoverDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+                try {
+                    const imgBuffer = convertDataURIToArrayBuffer(finalCoverDataUrl);
+                    writer.setFrame('APIC', {
+                        type: 3,
+                        data: imgBuffer,
+                        description: 'Cover Image'
+                    });
+                } catch (imgErr) {
+                    console.error("รูปภาพมีปัญหา:", imgErr);
                 }
 
-                // 5. บันทึกและสร้างไฟล์ใหม่
                 writer.addTag();
                 const blob = writer.getBlob();
                 const url = URL.createObjectURL(blob);
                 
-                // 6. สั่งดาวน์โหลด
                 const a = document.createElement('a');
                 a.href = url;
                 const titleVal = document.getElementById('meta-title').value;
@@ -346,7 +380,6 @@
                 document.body.appendChild(a);
                 a.click();
                 
-                // 7. ล้างขยะและปิดโหลดดิ้ง
                 setTimeout(() => {
                     document.body.removeChild(a);
                     URL.revokeObjectURL(url);
@@ -357,9 +390,12 @@
             } catch (err) {
                 console.error("Save Error:", err);
                 modal.style.display = 'none';
-                alert("เกิดข้อผิดพลาดจ้า: " + err.message + "\n\n(ลองเช็กดูน้าว่าเป็นไฟล์ .mp3 จริงๆ หรือเปล่า)");
+                alert("เกิดข้อผิดพลาดจ้า: " + err.message);
             }
         }
+        
+        // วาด Canvas ตอนเปิดหน้าเว็บเผื่อไว้ก่อน
+        renderCanvas();
     </script>
 </body>
 </html>
