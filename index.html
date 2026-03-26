@@ -6,6 +6,8 @@
     <title>THEMUIZ STUDIO - Remix Engineering Suite</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- เพิ่ม Library สำหรับเขียน ID3 Tags -->
+    <script src="https://unpkg.com/browser-id3-writer@4.4.0/dist/browser-id3-writer.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
         body {
@@ -241,6 +243,7 @@
 
     <script>
         let currentAudioFile = null;
+        let tempImageBuffer = null;
         let tempImageURL = null;
 
         function handleAudioUpload(event) {
@@ -270,7 +273,7 @@
             document.getElementById('meta-label').value = "TheMuiZ Records";
             document.getElementById('meta-genre').value = "EDM";
             document.getElementById('meta-copyright').value = "© 2026 All Rights Reserved | Copyright : TheMuiZ";
-            document.getElementById('meta-bpm').value = ""; // ว่างไว้ตามสั่ง
+            document.getElementById('meta-bpm').value = "";
         }
 
         function handleCoverUpload(event) {
@@ -279,11 +282,12 @@
                 const reader = new FileReader();
                 reader.onload = function(e) {
                     tempImageURL = e.target.result;
+                    tempImageBuffer = e.target.result; // Store raw data for ID3
                     document.getElementById('cropPreview').src = tempImageURL;
                     document.getElementById('cropModal').classList.remove('hidden');
                     document.getElementById('cropModal').classList.add('flex');
                 };
-                reader.readAsDataURL(file);
+                reader.readAsArrayBuffer(file);
             }
         }
 
@@ -295,7 +299,10 @@
         function confirmCrop() {
             document.getElementById('noCover').classList.add('hidden');
             const preview = document.getElementById('coverPreview');
-            preview.src = tempImageURL;
+            
+            // Convert buffer to blob URL for preview
+            const blob = new Blob([tempImageBuffer], {type: 'image/jpeg'});
+            preview.src = URL.createObjectURL(blob);
             preview.classList.remove('hidden');
             closeCrop();
         }
@@ -345,15 +352,65 @@
             }
         }
 
-        function saveFile() {
-            const btn = document.getElementById('saveBtn');
-            const title = document.getElementById('meta-title').value;
-            btn.textContent = "Processing...";
+        async function saveFile() {
+            if (!currentAudioFile) return;
             
-            setTimeout(() => {
-                btn.innerHTML = '<i class="fa-solid fa-save text-xl"></i> บันทึกเป็นไฟล์ใหม่';
-                alert("จัดเตรียมไฟล์เพลง '" + title + "' พร้อมข้อมูล Metadata เรียบร้อยจ้า!");
-            }, 2000);
+            const btn = document.getElementById('saveBtn');
+            const originalText = btn.innerHTML;
+            btn.disabled = true;
+            btn.textContent = "กำลังประมวลผล Metadata...";
+
+            try {
+                const audioBuffer = await currentAudioFile.arrayBuffer();
+                const writer = new ID3Writer(audioBuffer);
+
+                // เขียนข้อมูลจาก Input ต่างๆ
+                writer.setFrame('TIT2', document.getElementById('meta-title').value)
+                      .setFrame('TPE1', [document.getElementById('meta-artist').value])
+                      .setFrame('TALB', document.getElementById('meta-album').value)
+                      .setFrame('TYER', document.getElementById('meta-year').value)
+                      .setFrame('TCON', [document.getElementById('meta-genre').value])
+                      .setFrame('TCOP', document.getElementById('meta-copyright').value)
+                      .setFrame('TPUB', document.getElementById('meta-label').value)
+                      .setFrame('TBPM', document.getElementById('meta-bpm').value)
+                      .setFrame('TRCK', document.getElementById('meta-track').value)
+                      .setFrame('COMM', {
+                          description: 'Comment',
+                          text: document.getElementById('meta-comments').value + "\nCreated By: " + document.getElementById('meta-creator').value
+                      });
+
+                // ใส่รูปภาพหน้าปกถ้ามี
+                if (tempImageBuffer) {
+                    writer.setFrame('APIC', {
+                        type: 3,
+                        data: tempImageBuffer,
+                        description: 'Cover'
+                    });
+                }
+
+                writer.addTag();
+                
+                const taggedBlob = writer.getBlob();
+                const downloadUrl = URL.createObjectURL(taggedBlob);
+                
+                const a = document.createElement('a');
+                a.href = downloadUrl;
+                a.download = (document.getElementById('meta-title').value || 'remix') + ".mp3";
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                
+                btn.innerHTML = '<i class="fa-solid fa-check text-xl"></i> บันทึกสำเร็จ!';
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.innerHTML = originalText;
+                }, 3000);
+
+            } catch (error) {
+                console.error(error);
+                btn.textContent = "เกิดข้อผิดพลาด!";
+                btn.disabled = false;
+            }
         }
 
         function resetApp() {
